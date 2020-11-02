@@ -694,16 +694,21 @@ contract MTFinance is ERC20 {
                   string memory _name,
                   string memory _symbol,
                   uint8 _decimals,
-                  uint256 _amount
+                  uint256 _amount,
+				  address _owner
 
                   )
 
-                  ERC20(_name, _symbol)
+                 ERC20(_name, _symbol)
 
                     public
                   {
                     require(_amount > 0, "amount has to be greater than 0");
-                    uint256 totalSupply_=_amount * 10 ** uint(_decimals);
-                     _mint(0x488d6858D6E93cee1E2F3C42c6CD202Eb93E1eC1, totalSupply_);
+                    uint256 _totalSupply=_amount * 10 ** uint(_decimals);
+                    _mint(_owner, _totalSupply);
+                      
                   }
+				  
+				  
+
 }
