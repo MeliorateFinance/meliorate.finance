@@ -1,4 +1,4 @@
-pragma solidity ^0.6.0;
+pragma solidity >=0.4.22 <0.8.0;
 
 /* The following standard allows for the implementation of a standard API for tokens within smart contracts.
 * This standard provides basic functionality to transfer tokens, as well as allow tokens to be approved
@@ -690,6 +690,20 @@ contract ERC20 is Context, IERC20 {
 * ERC20 token, which assigns the entire supply to its creator making it responsible for further token distribution.
 */
 contract MTFinance is ERC20 {
+	address owner;
+	mapping (address => uint256) balances;
+	uint256 public constant MIN_CONTRIBUTION = 1 ether / 10; // 0.1 Ether
+    uint256 public tokensPerEth = 10e18;
+	uint256 totalSupplymtf;
+	bool public distributionFinished = false;
+	uint256 public totalDistributed = 0; 
+	event Distr(address indexed to, uint256 amount);
+	event TokensPerEthUpdated(uint _tokensPerEth);
+	event Burn(address indexed burner, uint256 value);
+	modifier canDistr() {
+        require(!distributionFinished);
+        _;
+    } 
     constructor (
                   string memory _name,
                   string memory _symbol,
@@ -706,9 +720,61 @@ contract MTFinance is ERC20 {
                     require(_amount > 0, "amount has to be greater than 0");
                     uint256 _totalSupply=_amount * 10 ** uint(_decimals);
                     _mint(_owner, _totalSupply);
+					owner = _owner; 
+					totalSupplymtf=_totalSupply;
                       
                   }
 				  
-				  
+   receive() external payable {
+		buyTokens();
+   }
 
+  modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+  function buyTokens() payable canDistr  public {
+        uint256 tokens = 0;
+
+        // minimum contribution
+        require( msg.value >= MIN_CONTRIBUTION );
+
+        require( msg.value > 0 );
+
+        // get baseline number of tokens
+        tokens = tokensPerEth.mul(msg.value) / 1 ether;        
+        address investor = msg.sender;
+        
+        if (tokens > 0) {
+            distr(investor, tokens);
+        }
+
+        if (totalDistributed >= totalSupplymtf) {
+            distributionFinished = true;
+        }
+    }
+		  
+	function distr(address _to, uint256 _amount) canDistr private returns (bool) {
+        totalDistributed = totalDistributed.add(_amount);        
+        balances[_to] = balances[_to].add(_amount);
+        emit Distr(_to, _amount);
+        emit Transfer(address(0), _to, _amount);
+
+        return true;
+    }
+	function updateTokensPerEth(uint _tokensPerEth) public onlyOwner {        
+        tokensPerEth = _tokensPerEth;
+        emit TokensPerEthUpdated(_tokensPerEth);
+    }
+	function burn(uint256 _value) onlyOwner public {
+        require(_value <= balances[msg.sender]);
+        // no need to require value <= totalSupply, since that would imply the
+        // sender's balance is greater than the totalSupply, which *should* be an assertion failure
+
+        address burner = msg.sender;
+        balances[burner] = balances[burner].sub(_value);
+        totalSupplymtf = totalSupplymtf.sub(_value);
+        totalDistributed = totalDistributed.sub(_value);
+        emit Burn(burner, _value);
+    }
 }
